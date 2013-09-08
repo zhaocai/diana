@@ -10,6 +10,7 @@ import urllib.request
 from urllib.error import URLError, HTTPError
 from subprocess import check_call
 from getopt import getopt
+import configparser
 
 MAX_NAME_LEN = 50
 ELLIPSIS = '...'
@@ -49,10 +50,44 @@ def arrival (download_speed, remaining_length):
     result += "%ds" % s
     return result
 
+
 def call_func(func, params=[]):
-    jsonreq = json.dumps({'id' : 'foo', 'method' : 'aria2.%s' % func, 'params' : params}).encode('utf-8')
+    def add_section_header(properties_file, header_name):
+        # configparser.ConfigParser requires at least one section header in a
+        # properties file.  Our properties file doesn't have one, so add a header
+        # to it on the fly.
+        yield '[{}]\n'.format(header_name)
+        for line in properties_file:
+            yield line
+
+    aria2_conf = os.path.expanduser("~/.aria2/aria2.conf")
     try:
-        c = urllib.request.urlopen('http://localhost:6800/jsonrpc', jsonreq)
+        config = configparser.ConfigParser()
+        config.read_file(open(aria2_conf))
+    except configparser.MissingSectionHeaderError:
+        file = open(aria2_conf, encoding="utf_8")
+        config = configparser.ConfigParser()
+        config.read_file(add_section_header(file, 'DEFAULT'))
+
+    try:
+        rpc_user = config.get('DEFAULT','rpc-user')
+        rpc_passwd = config.get('DEFAULT','rpc-passwd')
+    except Exception:
+        rpc_user = None
+
+    jsonreq = json.dumps({'id' : 'foo', 'method' : 'aria2.%s' % func, 'params' : params}).encode('utf-8')
+    aria2_rpc_url = 'http://localhost:6800/jsonrpc'
+    try:
+        if rpc_user:
+            password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+            password_mgr.add_password(None, aria2_rpc_url, rpc_user, rpc_passwd)
+
+            handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
+            opener = urllib.request.build_opener(handler)
+
+            c = opener.open(aria2_rpc_url, jsonreq)
+        else:
+            c = urllib.request.urlopen(aria2_rpc_url, jsonreq)
     except IOError as err:
         code = -1
         if type(err) is URLError:

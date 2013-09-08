@@ -75,7 +75,7 @@ def call_func(func, params=[]):
     except Exception:
         rpc_user = None
 
-    jsonreq = json.dumps({'id' : 'foo', 'method' : 'aria2.%s' % func, 'params' : params}).encode('utf-8')
+    jsonreq = json.dumps({'id' : 'aria2', 'method' : 'aria2.%s' % func, 'params' : params}).encode('utf-8')
     aria2_rpc_url = 'http://localhost:6800/jsonrpc'
     try:
         if rpc_user:
@@ -279,15 +279,14 @@ def list_downloads(kind):
                 if 'files' in r:
                     files = r['files']
                     for f in files:
-                        if 'uris' in f:
+                        if 'path' in f:
+                            name = os.path.basename(f['path'])
+                            break
+                        elif 'uris' in f:
                             uris = f['uris']
                             if len(uris) > 0:
                                 name = uris[0]['uri']
                                 break
-                            else:
-                                if 'path' in f:
-                                    name = f['path']
-                                    break
 
             if len(name) > MAX_NAME_LEN: name = name[:MAX_NAME_LEN - len(ELLIPSIS)] + ELLIPSIS
 
